@@ -157,8 +157,8 @@ class QLearningGame(Game):
 
     def __init__(self, width, height, map_file):
         """
-        Game to play the pathfinding game. The game is played with the arrow keys
-        to move the agent. The game is won when the agent reaches the target cell.
+        Game to play the pathfinding game. The game is played by changing the agents velocity vector. 
+        The game is won when the agent reaches the target cell.
         The game is lost when the agent hits a wall. The game is restarted when
         the agent hits a wall or reaches the target cell.
 
@@ -171,6 +171,7 @@ class QLearningGame(Game):
         map_file : str
             File to load the map.
         """
+        self.game_over = False
 
         super().__init__(width, height, map_file)
 
@@ -220,12 +221,13 @@ class QLearningGame(Game):
 
         if self.is_valid_move(new_pos):
             if self.is_won(new_pos):
-                print("You won!")
+                #print("You won!")
+                self.game_over = True
                 self.agent = self.find_start_position()
             else:
                 self.agent = new_pos
         else:
-            print("You lost!")
+            #print("You lost!")
             self.agent = self.find_start_position()
 
     def update_velocity(self, changes):
@@ -246,8 +248,13 @@ class QLearningGame(Game):
     def update_position(self):
         """
         Updates the position of the agent based on the velocity vector
+
+        Returns
+        -------
+        tuple(int, int)
+            new position of the agent
         """
-        self.agent = tuple(self.agent[i] + self.velocity[i] for i in range(1))
+        return tuple(self.agent[i] + self.velocity[i] for i in range(2))
 
     def is_valid_action(self, changes):
         """
@@ -257,19 +264,34 @@ class QLearningGame(Game):
         ----------
         changes : numpy array
             changes for both velocity components (can each be 0, +1, -1)
+
+        Returns
+        -------
+        bool
+            whether or not velocity changes are valid
         """
-        validity = np.all(abs(self.velocity[i]+ changes[i]) < 3 for i in range(1))
+        validity = np.all(abs(self.velocity[i]+ changes[i]) < 3 for i in range(2))
 
         validity = validity and (not np.allclose(self.velocity+changes, np.zeros(2)) or self.grid[self.agent]== CELL.START)
 
+        return validity
 
-
-
-
-
-
+    def is_game_finished(self):
+        """
+        Auxiliary function to check from outside if game is done
+        
+        Returns
+        -------
+        bool
+            whether or not game is over
+        """
+        return self.game_over
     
-
+    def reset_finished(self):
+        """
+        Set variable game_over to false
+        """
+        self.game_over = False
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Game")
