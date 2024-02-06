@@ -148,6 +148,127 @@ class Game(Container):
             True if the game is won, False otherwise.
         """
         return self.grid[new_pos] == CELL.TARGET
+    
+
+class QLearningGame(Game):
+    """
+    Slightly adapted interface for the agent within the Q-learning algorithm to play the game
+    """
+
+    def __init__(self, width, height, map_file):
+        """
+        Game to play the pathfinding game. The game is played with the arrow keys
+        to move the agent. The game is won when the agent reaches the target cell.
+        The game is lost when the agent hits a wall. The game is restarted when
+        the agent hits a wall or reaches the target cell.
+
+        Parameters
+        ----------
+        width : int
+            Width of the window.
+        height : int
+            Height of the window.
+        map_file : str
+            File to load the map.
+        """
+
+        super().__init__(width, height, map_file)
+
+    def setup(self):  
+        """
+        Setup the game.
+        """      
+        self.grid = np.loadtxt(self.map_file, dtype=int).T
+        self.grid = np.vectorize(CELL)(self.grid)
+        self.cell_size = self.window_dim / self.grid.shape
+
+        self.agent = self.find_start_position()
+
+        #velocity vector that the agent can manipulate to decide where to go [horizontal, vertical]
+        self.velocity = np.array([0,0])
+
+    def find_start_position(self):
+        """
+        Find a random start position on a start cell.
+
+        Returns
+        -------
+        tuple(int, int)
+            The start position.
+        """
+
+        self.velocity = np.array([0,0])
+
+        return super().find_start_position()
+
+    def move(self, velocity_changes):
+        """
+        Move the agent in the direction of the updated velocity vector.
+
+        Parameters
+        ----------
+        velocity_changes : numpy array
+            changes for both velocity components (can each be 0, +1, -1)
+        """
+        if len(velocity_changes)!=2:
+            raise ValueError(
+                f"Length of velocity change vector must be 2 but was {len(velocity_changes)}"
+            )
+        
+        self.update_velocity(velocity_changes)
+        new_pos = self.update_position()
+
+        if self.is_valid_move(new_pos):
+            if self.is_won(new_pos):
+                print("You won!")
+                self.agent = self.find_start_position()
+            else:
+                self.agent = new_pos
+        else:
+            print("You lost!")
+            self.agent = self.find_start_position()
+
+    def update_velocity(self, changes):
+        """
+        Update the current velocity vector and check if still valid
+        
+        Parameters
+        ----------
+        changes : numpy array
+            changes for both velocity components (can each be 0, +1, -1)
+        """
+
+        if self.is_valid_action(changes):
+            self.velocity += changes
+        else:
+            raise ValueError("Given velocity changes are not valid")
+        
+    def update_position(self):
+        """
+        Updates the position of the agent based on the velocity vector
+        """
+        self.agent = tuple(self.agent[i] + self.velocity[i] for i in range(1))
+
+    def is_valid_action(self, changes):
+        """
+        Check if velocity changes are valid based on game description
+        
+        Parameters
+        ----------
+        changes : numpy array
+            changes for both velocity components (can each be 0, +1, -1)
+        """
+        validity = np.all(abs(self.velocity[i]+ changes[i]) < 3 for i in range(1))
+
+        validity = validity and (not np.allclose(self.velocity+changes, np.zeros(2)) or self.grid[self.agent]== CELL.START)
+
+
+
+
+
+
+
+    
 
 
 if __name__ == "__main__":
@@ -158,3 +279,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     Game(args.width, args.height, args.map_file)
+
