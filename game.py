@@ -38,9 +38,8 @@ class Game(Container):
         self.grid = MapLoader.load_map(self.map_file)
         self.cell_size = self.window_dim / self.grid.shape
 
-        self.finder = MonteCarlo(self.grid)
+        self.finder = MonteCarlo(self.grid, policy_filename=f"./policies/{os.path.basename(self.map_file).split('.')[0]}.policy.txt")
         self.finder.monte_carlo_control()
-        self.finder.policy.epsilon = 0.05
         self.agent = self.find_start_position()
 
         self.bind("<Up>", self.move)

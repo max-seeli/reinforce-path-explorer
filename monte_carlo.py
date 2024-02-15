@@ -1,20 +1,23 @@
 import numpy as np
 from tqdm import tqdm
 from collections import defaultdict
+import warnings
 
 from cell import CELL
 
 
 class Policy:
-    def __init__(self, epsilon=0.1):
+    def __init__(self, train_epsilon, test_epsilon):
         self.policy = {}
-        self.epsilon = epsilon
-        self.is_greedy = True
+    
+        self.train_epsilon = train_epsilon
+        self.test_epsilon = test_epsilon
+        self.epsilon = train_epsilon
 
     def __getitem__(self, state):
         if state not in self.policy:
             self.policy[state] = np.random.choice(MonteCarlo.get_legal_actions(state))
-        if np.random.random() < self.epsilon and self.is_greedy:
+        if np.random.random() < self.epsilon:
             return np.random.choice(MonteCarlo.get_legal_actions(state))
         return self.policy[state]
     
@@ -23,6 +26,14 @@ class Policy:
 
     def __len__(self):
         return len(self.policy)
+    
+    def set_trained(self):
+        self.epsilon = self.test_epsilon
+
+    def save(self, filename):
+        with open(filename, 'w') as f:
+            for state, action in self.policy.items():
+                f.write(f"{state[0]},{state[1]},{state[2]},{state[3]},{action}\n")
     
 class MonteCarlo:
 
@@ -33,7 +44,7 @@ class MonteCarlo:
            'no_change': (0, 0)}
     max_velocity = 2
     
-    def __init__(self, grid, gamma=0.9, num_episodes=100, epsilon=0.1):
+    def __init__(self, grid, gamma=0.9, num_episodes=10000, train_epsilon=0.9, test_epsilon=0.05, policy_filename=None):
         self.grid = grid
 
         self.starts = np.where(self.grid == CELL.START)
@@ -45,12 +56,16 @@ class MonteCarlo:
 
         self.gamma = gamma
         self.num_episodes = num_episodes
-        self.epsilon = epsilon
+        self.train_epsilon = train_epsilon
+        self.test_epsilon = test_epsilon
         
         self.Q = defaultdict(lambda: defaultdict(float))
         self.returns = defaultdict(lambda: defaultdict(list))
 
-        self.policy = Policy(epsilon=self.epsilon)
+        self.policy = Policy(train_epsilon, test_epsilon)
+
+        self.is_trained = False
+        self.policy_filename = policy_filename
 
     @staticmethod
     def get_legal_actions(state):
@@ -65,6 +80,7 @@ class MonteCarlo:
         return legal_actions
     
     def generate_episode(self, start=None):
+        
         episode = []
         if start is None:
             random_start_index = np.random.choice(len(self.starts))
@@ -82,7 +98,7 @@ class MonteCarlo:
             next_position = (state[0] + vx, state[1] + vy)
             next_state = next_position + (vx, vy)
 
-            if next_position[0] < 0 or next_position[0] >= self.grid.shape[0] or next_position[1] < 0 or next_position[1] >= self.grid.shape[1] or next_position in self.obstacles:
+            if next_position[0] < 0 or next_position[0] >= self.grid.shape[0] or next_position[1] < 0 or next_position[1] >= self.grid.shape[1] or self.hits_wall(state[:2], next_position):
                 reward = -1  # Penalty for hitting boundaries or obstacles
                 next_state = start + (0, 0)
             elif next_position == self.goal:
@@ -93,8 +109,39 @@ class MonteCarlo:
             episode.append((state, action, reward))
             state = next_state
         return episode
+    
+    def hits_wall(self, pos1, pos2):
+        """
+        Find if the line between pos1 and pos2 hits a wall.
+        """
+        x1, y1 = pos1
+        x2, y2 = pos2
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        x = x1
+        y = y1
+        n = 1 + dx + dy
+        x_inc = 1 if x2 > x1 else -1
+        y_inc = 1 if y2 > y1 else -1
+        error = dx - dy
+        dx *= 2
+        dy *= 2
+        for _ in range(n):
+            if self.grid[x, y] == CELL.WALL:
+                return True
+            if error > 0:
+                x += x_inc
+                error -= dy
+            else:
+                y += y_inc
+                error += dx
+        return False
 
     def monte_carlo_control(self):
+        if self.is_trained:
+            warnings.warn("The agent is already trained.")
+            return
+        
         for _ in tqdm(range(self.num_episodes)):
             episode = self.generate_episode()
             G = 0
@@ -109,6 +156,11 @@ class MonteCarlo:
 
                     best_action = max(legal_actions, key=lambda a: self.Q[state][a])
                     self.policy[state] = best_action
+
+        self.is_trained = True
+        self.policy.set_trained()
+        if self.policy_filename:
+            self.policy.save(self.policy_filename)
 
 if __name__ == "__main__":
     from map import MapLoader
