@@ -1,19 +1,19 @@
-from argparse import ArgumentParser
 import os
 
 import numpy as np
 
 from drawing import Container
 from cell import CELL
+from q_learning import QLearning
 
-class Game(Container):
+import matplotlib.pyplot as plt
 
-    def __init__(self, width, height, map_file):
+class GameVisualization(Container):
+
+    def __init__(self, width, height, map_file, easy_target, q_table):
         """
-        Game to play the pathfinding game. The game is played with the arrow keys
-        to move the agent. The game is won when the agent reaches the target cell.
-        The game is lost when the agent hits a wall. The game is restarted when
-        the agent hits a wall or reaches the target cell.
+        Game to play the pathfinding game. This class is used for visualization of the game itself
+        and the paths chosen by an agent using Q-Learning
 
         Parameters
         ----------
@@ -23,9 +23,16 @@ class Game(Container):
             Height of the window.
         map_file : str
             File to load the map.
+        easy_target : bool
+            whether target can be found by hopping over it or if the agent has to end a move on the target cell.
+        q_table : ndarray
+            trained policy for the agent.
         """
         self.window_dim = np.array([width, height])
         self.map_file = map_file
+        self.easy_target = easy_target
+        self.q_table = q_table
+
 
         super().__init__(self.window_dim[0], self.window_dim[1], frame_rate=20)
 
@@ -39,10 +46,14 @@ class Game(Container):
 
         self.agent = self.find_start_position()
 
+        self.finder = QLearning(200, q_table = self.q_table, map_file=self.map_file, easy_target=self.easy_target)
+        self.agent = self.find_start_position()
+
         self.bind("<Up>", self.move)
         self.bind("<Down>", self.move)
         self.bind("<Left>", self.move)
-        self.bind("<Right>", self.move)  
+        self.bind("<Right>", self.move) 
+        self.bind("<Button-1>", self.draw_episode)
         
     def find_start_position(self):
         """
@@ -65,7 +76,7 @@ class Game(Container):
             for j in range(self.grid.shape[1]):
                 self.draw_cell(i, j)
 
-        self.draw_cell(self.agent[0], self.agent[1], "red")
+        #self.draw_cell(self.agent[0], self.agent[1], "red")
         self.draw_grid(self.grid.shape[0], self.grid.shape[1], self.cell_size, color="black", linewidth=1.5)
         
     def draw_cell(self, i, j, color=None):
@@ -131,7 +142,48 @@ class Game(Container):
         """
         return (0 <= new_pos[0] < self.grid.shape[0] and
                 0 <= new_pos[1] < self.grid.shape[1] and
-                self.grid[new_pos] != CELL.WALL)
+                self.grid[new_pos] != CELL.WALL and
+                not self.jumped_over_special_field(new_pos, CELL.WALL))
+    
+    def jumped_over_special_field(self, new_pos, field_type):
+        """
+        Checks whether or not agent jumped over a special field of the given type in the current move
+        
+        Parameters
+        ----------
+        new_pos : tuple(int, int)
+            The new position of the agent.
+        field_type : Enum
+            what type of field should be checked.
+
+        Returns
+        -------
+        bool
+            True if the agent jumped over a wall with its move
+        """
+
+        x1, y1 = self.agent
+        x2, y2 = new_pos
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        x = x1
+        y = y1
+        n = 1 + dx + dy
+        x_inc = 1 if x2 > x1 else -1
+        y_inc = 1 if y2 > y1 else -1
+        error = dx - dy
+        dx *= 2
+        dy *= 2
+        for _ in range(n):
+            if self.grid[x, y] == field_type:
+                return True
+            if error > 0:
+                x += x_inc
+                error -= dy
+            else:
+                y += y_inc
+                error += dx
+        return False
     
     def is_won(self, new_pos):
         """
@@ -147,14 +199,52 @@ class Game(Container):
         bool
             True if the game is won, False otherwise.
         """
-        return self.grid[new_pos] == CELL.TARGET
+        if self.easy_target:
+            return (self.grid[new_pos] == CELL.TARGET or
+                    self.jumped_over_special_field(new_pos, CELL.TARGET))
+        
+        else:
+            return self.grid[new_pos] == CELL.TARGET
     
-if __name__ == "__main__":
-    parser = ArgumentParser(description="Game")
-    parser.add_argument("--width", type=int, default=500, help="Width of the window")
-    parser.add_argument("--height", type=int, default=600, help="Height of the window")
-    parser.add_argument("--map_file", type=str, default=os.path.join(os.getcwd(), "maps/map1.txt"), help="File to load the map")
-    args = parser.parse_args()
+    def draw_episode(self, event):
+        coords = (event.x, event.y)
+        coords = np.array([event.x, event.y])
+        i, j = np.clip(coords // self.cell_size, 0, np.array(self.grid.shape) - 1).astype(int)
 
-    Game(args.width, args.height, args.map_file)
+        self.finder.game.agent = (i,j)
+        _, episode = self.finder.run_episode()
+
+        for state in episode[:-1]:
+            self.draw_cell(state[0], state[1], "red")
+            self.root.update()
+            self.root.after(750)
+            self.draw_cell(state[0], state[1], "orange")
+            self.root.update()     
+    
+
+if __name__ == "__main__":
+
+    n_episodes = 1000000
+    step_size = 500
+    map_file = os.path.join(os.getcwd(), "maps/map1.txt")
+    easy_target = False
+    q_learning = QLearning(n_episodes,eps = 1.0, eps_decay_factor=0.75, min_eps=0.1, step_size=step_size, map_file=map_file, easy_target=easy_target)
+
+    q_learning.train()
+    
+    rewards = np.array(q_learning.rewards_per_episode)
+    
+    plt.plot(range(0,n_episodes, step_size), np.abs(np.average(rewards.reshape(-1, step_size), axis=1)))
+    plt.yscale("log")
+    plt.title("Loss per episode")
+    plt.xlabel("Number of episodes")
+    plt.ylabel("Negative Reward")
+    plt.show()
+
+    q_learning.store_qtable("q_tables/map1.txt")
+
+    GameVisualization(width= 500, height=600, map_file=map_file, easy_target=easy_target, q_table=q_learning.q_table)
+
+  
+
 
