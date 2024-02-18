@@ -30,6 +30,13 @@ class Policy:
     def set_trained(self):
         self.epsilon = self.test_epsilon
 
+    def load(self, filename):
+        with open(filename, 'r') as f:
+            for line in f:
+                state = tuple(map(int, line.split(',')[:4]))
+                action = line.split(',')[4].strip()
+                self.policy[state] = action
+
     def save(self, filename):
         with open(filename, 'w') as f:
             for state, action in self.policy.items():
@@ -44,7 +51,7 @@ class MonteCarlo:
            'no_change': (0, 0)}
     max_velocity = 2
     
-    def __init__(self, grid, gamma=0.9, num_episodes=10000, train_epsilon=0.9, test_epsilon=0.05, policy_filename=None):
+    def __init__(self, grid, gamma=0.9, num_episodes=10000, train_epsilon=0.9, test_epsilon=0.05, policy_filename=None, load_policy=False):
         self.grid = grid
 
         self.starts = np.where(self.grid == CELL.START)
@@ -63,9 +70,13 @@ class MonteCarlo:
         self.returns = defaultdict(lambda: defaultdict(list))
 
         self.policy = Policy(train_epsilon, test_epsilon)
-
-        self.is_trained = False
         self.policy_filename = policy_filename
+        self.is_trained = False
+
+        if load_policy:
+            self.policy.load(policy_filename)
+            self.policy.set_trained()
+            self.is_trained = True
 
     @staticmethod
     def get_legal_actions(state):
