@@ -38,7 +38,10 @@ class Game(Container):
         self.grid = MapLoader.load_map(self.map_file)
         self.cell_size = self.window_dim / self.grid.shape
 
-        self.finder = MonteCarlo(self.grid, policy_filename=f"./policies/{os.path.basename(self.map_file).split('.')[0]}.policy.txt", load_policy=True)
+        policy_filename = f"./policies/{os.path.basename(self.map_file).split('.')[0]}.policy.txt"
+        policy_exists = os.path.exists(policy_filename)
+
+        self.finder = MonteCarlo(self.grid, test_epsilon=0, policy_filename=policy_filename, load_policy=policy_exists)
         self.finder.monte_carlo_control()
         self.agent = self.find_start_position()
 
@@ -171,7 +174,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Game")
     parser.add_argument("--width", type=int, default=500, help="Width of the window")
     parser.add_argument("--height", type=int, default=600, help="Height of the window")
-    parser.add_argument("--map_file", type=str, default=os.path.join(os.getcwd(), "maps/map1.txt"), help="File to load the map")
+    parser.add_argument("--map_file", type=str, default=os.path.join(os.getcwd(), "maps/map2.txt"), help="File to load the map")
     args = parser.parse_args()
 
     Game(args.width, args.height, args.map_file)

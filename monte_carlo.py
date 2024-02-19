@@ -75,8 +75,8 @@ class MonteCarlo:
 
         if load_policy:
             self.policy.load(policy_filename)
-            self.policy.set_trained()
             self.is_trained = True
+            self.policy.set_trained()
 
     @staticmethod
     def get_legal_actions(state):
