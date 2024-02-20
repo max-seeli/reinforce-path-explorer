@@ -93,26 +93,15 @@ class MonteCarlo:
     def generate_episode(self, start=None):
         
         episode = []
-        if start is None:
-            random_start_index = np.random.choice(len(self.starts))
-            random_start = self.starts[random_start_index]
-            start = random_start
-        state = start + (0, 0)
+        state = start + (0, 0) if start else self.gen_random_start() + (0, 0)
         while state[:2] != self.goal:
             action = self.policy[state]
-            dvx, dvy = MonteCarlo.actions[action]
-            vx, vy = state[2] + dvx, state[3] + dvy
-            # Ensure velocity stays within bounds
-            vx = max(-self.max_velocity, min(self.max_velocity, vx))
-            vy = max(-self.max_velocity, min(self.max_velocity, vy))
+            next_state = self.step(state, action)
 
-            next_position = (state[0] + vx, state[1] + vy)
-            next_state = next_position + (vx, vy)
-
-            if next_position[0] < 0 or next_position[0] >= self.grid.shape[0] or next_position[1] < 0 or next_position[1] >= self.grid.shape[1] or self.hits_wall(state[:2], next_position):
+            if not self.is_step_legal(state, next_state):
                 reward = -1  # Penalty for hitting boundaries or obstacles
-                next_state = start + (0, 0)
-            elif next_position == self.goal:
+                next_state = self.gen_random_start() + (0, 0)
+            elif next_state[:2] == self.goal:
                 reward = 1
             else:
                 reward = -1  # Small penalty for each move
@@ -121,6 +110,27 @@ class MonteCarlo:
             state = next_state
         return episode
     
+    def gen_random_start(self):
+        random_start_index = np.random.choice(len(self.starts))
+        random_start = self.starts[random_start_index]
+        return random_start
+
+    def step(self, state, action):
+        dvx, dvy = MonteCarlo.actions[action]
+        vx, vy = state[2] + dvx, state[3] + dvy
+        # Ensure velocity stays within bounds
+        vx = max(-self.max_velocity, min(self.max_velocity, vx))
+        vy = max(-self.max_velocity, min(self.max_velocity, vy))
+
+        return (state[0] + vx, state[1] + vy) + (vx, vy)
+    
+    def is_step_legal(self, old_state, new_state):
+        old_pos = old_state[:2]
+        new_pos = new_state[:2]
+        return (0 <= new_pos[0] < self.grid.shape[0] and
+                0 <= new_pos[1] < self.grid.shape[1] and
+                not self.hits_wall(old_pos, new_pos))
+
     def hits_wall(self, pos1, pos2):
         """
         Find if the line between pos1 and pos2 hits a wall.
@@ -177,7 +187,7 @@ if __name__ == "__main__":
     from map import MapLoader
 
     map = MapLoader.load_map("./maps/easy.txt")
-    mc = MonteCarlo(map)
+    mc = MonteCarlo(map, num_episodes=100)
     mc.monte_carlo_control()
 
     # Display the resulting policy for a subset of states for clarity
