@@ -69,8 +69,8 @@ class MapEditor(Container):
         """
         Save the map to a file when the window is closed.
         """
-        np.savetxt(self.map_file, np.vectorize(lambda x: x.value)(self.grid).T, fmt="%d")
-    
+        MapLoader.save_map(self.grid, self.map_file)
+        
     def cycle_cell(self, event):
         """
         Cycle the cell type when a cell is clicked.
@@ -84,6 +84,42 @@ class MapEditor(Container):
         i, j = np.clip(coords // self.cell_size, 0, np.array(self.grid.shape) - 1).astype(int)
         self.grid[i][j] = CELL((self.grid[i][j].value + 1) % 4)
 
+class MapLoader:
+
+    @staticmethod
+    def load_map(map_file):
+        """
+        Load a map from a file.
+
+        Parameters
+        ----------
+        map_file : str
+            The file to load the map from.
+
+        Returns
+        -------
+        np.ndarray
+            The map.
+        """
+        if os.path.exists(map_file):
+            map = np.loadtxt(map_file, dtype=int).T
+            return np.vectorize(CELL)(map)
+        else:
+            raise FileNotFoundError(f"Map file {map_file} not found.")
+
+    @staticmethod
+    def save_map(map, map_file):
+        """
+        Save a map to a file.
+
+        Parameters
+        ----------
+        map : np.ndarray of CELL
+            The map to save.
+        map_file : str
+            The file to save the map to.
+        """
+        np.savetxt(map_file, np.vectorize(lambda x: x.value)(map).T, fmt="%d")
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Map Editor")

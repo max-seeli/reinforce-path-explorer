@@ -5,6 +5,8 @@ import numpy as np
 
 from drawing import Container
 from cell import CELL
+from monte_carlo import MonteCarlo
+from map import MapLoader
 
 class Game(Container):
 
@@ -33,16 +35,21 @@ class Game(Container):
         """
         Setup the game and the event bindings.
         """      
-        self.grid = np.loadtxt(self.map_file, dtype=int).T
-        self.grid = np.vectorize(CELL)(self.grid)
+        self.grid = MapLoader.load_map(self.map_file)
         self.cell_size = self.window_dim / self.grid.shape
 
+        policy_filename = f"./policies/{os.path.basename(self.map_file).split('.')[0]}.policy.txt"
+        policy_exists = os.path.exists(policy_filename)
+
+        self.finder = MonteCarlo(self.grid, test_epsilon=0, policy_filename=policy_filename, load_policy=policy_exists)
+        self.finder.monte_carlo_control()
         self.agent = self.find_start_position()
 
         self.bind("<Up>", self.move)
         self.bind("<Down>", self.move)
         self.bind("<Left>", self.move)
-        self.bind("<Right>", self.move)  
+        self.bind("<Right>", self.move) 
+        self.bind("<Button-1>", self.draw_episode)
         
     def find_start_position(self):
         """
@@ -55,7 +62,7 @@ class Game(Container):
         """
         start_pos = np.where(self.grid == CELL.START)
         r_idx = np.random.randint(len(start_pos[0]))
-        return (start_pos[0][r_idx], start_pos[1][r_idx])      
+        return (start_pos[0][r_idx], start_pos[1][r_idx])
 
     def draw(self):
         """
@@ -115,6 +122,19 @@ class Game(Container):
             print("You lost!")
             self.agent = self.find_start_position()
 
+    def draw_episode(self, event):
+        coords = np.array([event.x, event.y])
+        i, j = np.clip(coords // self.cell_size, 0, np.array(self.grid.shape) - 1).astype(int)
+        start = (i, j)
+        episode = self.finder.generate_episode(start)
+
+        for state, action, reward in episode:
+            self.draw_cell(state[0], state[1], "orange")
+            self.root.update()
+            self.root.after(1000)
+            self.draw_cell(state[0], state[1])
+            self.root.update()
+
     def is_valid_move(self, new_pos):
         """
         Check if the move is valid.
@@ -154,7 +174,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Game")
     parser.add_argument("--width", type=int, default=500, help="Width of the window")
     parser.add_argument("--height", type=int, default=600, help="Height of the window")
-    parser.add_argument("--map_file", type=str, default=os.path.join(os.getcwd(), "maps/map1.txt"), help="File to load the map")
+    parser.add_argument("--map_file", type=str, default=os.path.join(os.getcwd(), "maps/map2.txt"), help="File to load the map")
     args = parser.parse_args()
 
     Game(args.width, args.height, args.map_file)
