@@ -224,11 +224,11 @@ class GameVisualization(Container):
 
 if __name__ == "__main__":
 
-    n_episodes = 1000000
+    n_episodes = 1
     step_size = 500
-    map_file = os.path.join(os.getcwd(), "maps/map1.txt")
-    easy_target = False
-    q_learning = QLearning(n_episodes,eps = 1.0, eps_decay_factor=0.75, min_eps=0.1, step_size=step_size, map_file=map_file, easy_target=easy_target)
+    map_file = os.path.join(os.getcwd(), "maps/map2.txt")
+    easy_target = True
+    q_learning = QLearning(n_episodes, eps=0.9, eps_decay_factor=0.9, step_size=step_size, map_file=map_file, easy_target=easy_target)
 
     q_learning.train()
     
@@ -241,7 +241,7 @@ if __name__ == "__main__":
     plt.ylabel("Negative Reward")
     plt.show()
 
-    q_learning.store_qtable("q_tables/map1.txt")
+    q_learning.store_qtable("q_tables/map2.txt")
 
     GameVisualization(width= 500, height=600, map_file=map_file, easy_target=easy_target, q_table=q_learning.q_table)
 
