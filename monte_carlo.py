@@ -169,7 +169,7 @@ class MonteCarlo:
             for t in reversed(range(len(episode))):
                 state, action, reward = episode[t]
                 G = self.gamma * G + reward
-                if not (state, action) in [(x[0], x[1]) for x in episode[:t]]:
+                if not any((state, action) == (e[0], e[1]) for e in episode[:t]):
                     self.returns[state][action].append(G)
                     self.Q[state][action] = np.mean(self.returns[state][action])
                     # Update policy with the action that has the highest value and is legal
