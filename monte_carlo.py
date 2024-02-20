@@ -166,7 +166,7 @@ class MonteCarlo:
         for _ in tqdm(range(self.num_episodes)):
             episode = self.generate_episode()
             G = 0
-            for t in reversed(range(len(episode))):
+            for t in range(len(episode) - 1, -1, -1):
                 state, action, reward = episode[t]
                 G = self.gamma * G + reward
                 if not any((state, action) == (e[0], e[1]) for e in episode[:t]):
