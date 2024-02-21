@@ -186,7 +186,7 @@ class MonteCarlo:
     
     def generate_episode(self, start=None):
         """
-        Runs an episode of the game. Episode ends with reaching the target cell and gets resetted to an new 
+        Runs an episode of the game. Episode ends with reaching the target cell and gets resetted to a new 
         random start if we reach an invalid state.
 
         Parameters
