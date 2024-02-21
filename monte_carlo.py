@@ -116,7 +116,7 @@ class MonteCarlo:
            'no_change': (0, 0)}
     max_velocity = 2
     
-    def __init__(self, grid, gamma=0.9, num_episodes=10000, train_epsilon=0.9, test_epsilon=0.05, policy_filename=None, load_policy=False):
+    def __init__(self, grid, gamma=0.9, num_episodes=10000, train_epsilon=0.9, test_epsilon=0.05, policy_filename=None, load_policy=False, random_state=2024):
         """
         Initializes an instance of the MonteCarlo Reinforcement Learning agent.
 
@@ -136,7 +136,10 @@ class MonteCarlo:
             The filename to save or load the learned policy. If specified, the policy will be saved to or loaded from this file. Defaults to None.
         load_policy : bool
             Whether to load a pre-trained policy from the specified policy file. If True, the agent will attempt to load the policy from the file specified by `policy_filename`. Defaults to False.
+        random_state: int
+            Determines random number generation for train/test-epsilon.
         """
+        np.random.seed(random_state)
         self.grid = grid
 
         self.starts = np.where(self.grid == CELL.START)
