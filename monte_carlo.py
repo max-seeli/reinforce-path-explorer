@@ -13,7 +13,7 @@ class Policy:
 
     def __init__(self, train_epsilon, test_epsilon):
         """
-        Initializes an instance of the MonteCarlo Reinforcement Learning agent.
+        Initializes an instance of the MonteCarlo Reinforcement Learning policy for an agent.
 
         Parameters
         ----------
