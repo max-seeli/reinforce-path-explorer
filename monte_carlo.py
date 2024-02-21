@@ -45,19 +45,19 @@ class Policy:
             return np.random.choice(MonteCarlo.get_valid_actions(state))
         return self.policy[state]
     
-    def __setitem__(self, state, actions):
+    def __setitem__(self, state, action):
         """
-        Sets the `actions` for the specified `state`.
+        Sets the `action` for the specified `state`.
 
         Parameters
         ----------
         state: tuple(int, int, int, int)
-            The state for which `actions` should be set.
-        actions: [str]
-            The actions which should be associated to the specified `state`.
+            The state for which `action` should be set.
+        action: str
+            The action which should be associated to the specified `state`.
         """
 
-        self.policy[state] = actions
+        self.policy[state] = action
 
     def __len__(self):
         """
