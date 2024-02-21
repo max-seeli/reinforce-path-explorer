@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from collections import defaultdict
 import warnings
@@ -16,9 +17,9 @@ class Policy:
 
     def __getitem__(self, state):
         if state not in self.policy:
-            self.policy[state] = np.random.choice(MonteCarlo.get_legal_actions(state))
+            self.policy[state] = np.random.choice(MonteCarlo.get_valid_actions(state))
         if np.random.random() < self.epsilon:
-            return np.random.choice(MonteCarlo.get_legal_actions(state))
+            return np.random.choice(MonteCarlo.get_valid_actions(state))
         return self.policy[state]
     
     def __setitem__(self, state, action):
@@ -43,7 +44,7 @@ class Policy:
                 f.write(f"{state[0]},{state[1]},{state[2]},{state[3]},{action}\n")
     
 class MonteCarlo:
-
+    actions_memoization = {}
     actions = {'increase_vx': (1, 0), 'decrease_vx': (-1, 0),
            'increase_vy': (0, 1), 'decrease_vy': (0, -1),
            'increase_vx_vy': (1, 1), 'decrease_vx_vy': (-1, -1),
@@ -79,26 +80,27 @@ class MonteCarlo:
             self.policy.set_trained()
 
     @staticmethod
-    def get_legal_actions(state):
-        candidates = MonteCarlo.actions.values()
-        legal_actions = []
-        for c in candidates:
-            combined = (state[2] + c[0], state[3] + c[1])
-            if np.all(np.abs(combined) <= MonteCarlo.max_velocity) and np.any(combined):
-                legal_actions.append(c)
+    def get_valid_actions(state):
+        valid_actions = []
+        
+        if state not in MonteCarlo.actions_memoization:
+            for action, step in MonteCarlo.actions.items():
+                combined = (state[2] + step[0], state[3] + step[1])
+                if np.all(np.abs(combined) <= MonteCarlo.max_velocity) and np.any(combined):
+                    valid_actions.append(action)
 
-        legal_actions = [list(MonteCarlo.actions.keys())[list(MonteCarlo.actions.values()).index(a)] for a in legal_actions]
-        return legal_actions
+
+            MonteCarlo.actions_memoization[state] = valid_actions
+        return MonteCarlo.actions_memoization[state]
     
     def generate_episode(self, start=None):
-        
         episode = []
         state = start + (0, 0) if start else self.gen_random_start() + (0, 0)
         while state[:2] != self.goal:
             action = self.policy[state]
             next_state = self.step(state, action)
 
-            if not self.is_step_legal(state, next_state):
+            if not self.is_step_valid(state, next_state):
                 reward = -1  # Penalty for hitting boundaries or obstacles
                 next_state = self.gen_random_start() + (0, 0)
             elif next_state[:2] == self.goal:
@@ -124,14 +126,14 @@ class MonteCarlo:
 
         return (state[0] + vx, state[1] + vy) + (vx, vy)
     
-    def is_step_legal(self, old_state, new_state):
+    def is_step_valid(self, old_state, new_state):
         old_pos = old_state[:2]
         new_pos = new_state[:2]
         return (0 <= new_pos[0] < self.grid.shape[0] and
                 0 <= new_pos[1] < self.grid.shape[1] and
-                not self.hits_wall(old_pos, new_pos))
+                not self.hits_obstacle(old_pos, new_pos))
 
-    def hits_wall(self, pos1, pos2):
+    def hits_obstacle(self, pos1, pos2):
         """
         Find if the line between pos1 and pos2 hits a wall.
         """
@@ -172,11 +174,9 @@ class MonteCarlo:
                 if not any((state, action) == (e[0], e[1]) for e in episode[:t]):
                     self.returns[state][action].append(G)
                     self.Q[state][action] = np.mean(self.returns[state][action])
-                    # Update policy with the action that has the highest value and is legal
-                    legal_actions = MonteCarlo.get_legal_actions(state)
 
-                    best_action = max(legal_actions, key=lambda a: self.Q[state][a])
-                    self.policy[state] = best_action
+                    # Update policy with the action that has the highest value and is legal
+                    self.policy[state] = max(MonteCarlo.get_valid_actions(state), key=lambda a: self.Q[state][a])
 
         self.is_trained = True
         self.policy.set_trained()
@@ -186,8 +186,8 @@ class MonteCarlo:
 if __name__ == "__main__":
     from map import MapLoader
 
-    map = MapLoader.load_map("./maps/easy.txt")
-    mc = MonteCarlo(map, num_episodes=100)
+    map = MapLoader.load_map("./maps/map1.txt")
+    mc = MonteCarlo(map, num_episodes=10000, policy_filename="policies/test_map1.txt.policy")
     mc.monte_carlo_control()
 
     # Display the resulting policy for a subset of states for clarity
@@ -195,11 +195,11 @@ if __name__ == "__main__":
         if state[2:] == (0, 0):  # Only show policy for zero velocity states for brevity
             print(f"Policy at {state}: {mc.policy[state]}")
 
-    # Display the number of states in the policy
-    print(f"There are {len(mc.policy)} states in policy")
+    # # Display the number of states in the policy
+    # print(f"There are {len(mc.policy)} states in policy")
 
-    # Verify the policy by running an episodes
-    episode = mc.generate_episode(start=(4, 16))
-    print("Episode:")
-    for s, a, r in episode:
-        print(f"State: {s}, Action: {a}, Reward: {r}")
+    # # Verify the policy by running an episodes
+    # episode = mc.generate_episode(start=(4, 16))
+    # print("Episode:")
+    # for s, a, r in episode:
+    #     print(f"State: {s}, Action: {a}, Reward: {r}")
