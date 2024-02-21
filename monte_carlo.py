@@ -126,6 +126,8 @@ class MonteCarlo:
             The environment grid for the agent to navigate.
         gamma : float
             The discount factor for future rewards. Defaults to 0.9.
+        num_episodes : int
+            The number of episodes the agent is trained. Defaults to 10000
         train_epsilon : float
             The exploration rate during training (epsilon-greedy). Higher values encourage more exploration. Defaults to 0.9.
         test_epsilon : float
