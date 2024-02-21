@@ -5,6 +5,7 @@ import itertools
 import random
 import matplotlib.pyplot as plt
 from datetime import datetime
+from tqdm import tqdm
 
 class QLearningGame:
     """
@@ -45,21 +46,7 @@ class QLearningGame:
         #velocity vector that the agent can manipulate to decide where to go [horizontal, vertical]
         self.velocity = [0,0]
 
-    def find_start_position(self):
-        """
-        Find a random start position on a start cell.
-
-        Returns
-        -------
-        tuple(int, int)
-            The start position.
-        """
-
-        self.velocity = [0,0]
-
-        start_pos = np.where(self.grid == CELL.START)
-        r_idx = np.random.randint(len(start_pos[0]))
-        return (start_pos[0][r_idx], start_pos[1][r_idx])  
+    
 
     def move(self, velocity_changes):
         """
@@ -122,25 +109,6 @@ class QLearningGame:
         bool
             True if the agent jumped over a wall with its move
         """
-
-        #if abs(self.velocity[0]) == 2:
-        #    if abs(self.velocity[1]) == 2 or self.velocity[1] == 0:
-        #        middle_pos = (int(np.mean([self.agent[0], new_pos[0]])), int(np.mean([self.agent[1], new_pos[1]])))
-        #        return self.grid[middle_pos] == CELL.WALL
-        #    else:
-        #        middle_pos_1 = (int(np.mean([self.agent[0], new_pos[0]])), int(np.ceil(np.mean([self.agent[1], new_pos[1]]))))
-        #        middle_pos_2 = (int(np.mean([self.agent[0], new_pos[0]])), int(np.floor(np.mean([self.agent[1], new_pos[1]]))))
-        #        return self.grid[middle_pos_1] == CELL.WALL and self.grid[middle_pos_2] == CELL.WALL
-        #elif abs(self.velocity[1]) == 2:
-        #    if self.velocity[0] == 0:
-        #        middle_pos = (int(np.mean([self.agent[0], new_pos[0]])), int(np.mean([self.agent[1], new_pos[1]])))
-        #        return self.grid[middle_pos] == CELL.WALL
-        #    else:
-        #        middle_pos_1 = (int(np.ceil(np.mean([self.agent[0], new_pos[0]]))), int(np.mean([self.agent[1], new_pos[1]])))
-        #        middle_pos_2 = (int(np.floor(np.mean([self.agent[0], new_pos[0]]))), int(np.mean([self.agent[1], new_pos[1]])))
-        #        return self.grid[middle_pos_1] == CELL.WALL and self.grid[middle_pos_2] == CELL.WALL
-        #else:
-        #    return False
 
         x1, y1 = self.agent
         x2, y2 = new_pos
@@ -253,24 +221,24 @@ class QLearningGame:
 
 class QLearning:
     
-    def __init__(self, n_episodes: int,
+    def __init__(self, grid,
+                 n_episodes: int,
                  eps: float = 0.1, 
                  eps_decay_factor: float = 1.0, 
                  min_eps: float = 0.1,
                  gamma: float = 0.99, 
                  lr:float = 0.1, 
-                 map_file = os.path.join(os.getcwd(), "maps/map1.txt"),
                  step_size: int = 10,
-                 easy_target: bool = False,
-                 q_table = None,
-                 width: int = 500,
-                 height: int = 600):
+                 q_table_file_name: str = None,
+                 load_q_table: bool = False):
         
         """
         Q_learning algorithm implementation to learn an optimal path to the target on a given map.
         
         Parameters
         ----------
+        grid
+            map that should be used for the game
         n_episodes : int
             number of episodes to use for training
         eps : float
@@ -287,17 +255,13 @@ class QLearning:
             file name where map is stored that should be used for training
         step_size : int
             number of steps in which frequency eps should be decayed
-        easy_target : bool
-            whether target can be found by hopping over it or if the agent has to end a move on the target cell.
-        q_table : ndarray
-            pre-trained policy table, default None
-        width : int
-            Width of the window.
-        height : int
-            Height of the window.       
+        q_table_filename : ndarray
+            file where pre-trained policy table is stored, default None
+        load_q_table : bool
+            whether or not pre-trained policy should be loaded    
         """
 
-        self.game = QLearningGame(width=width, height=height, map_file=map_file, easy_target=easy_target)
+        self.grid = grid
         self.n_episodes = n_episodes
         self.eps = max(eps, min_eps)
         self.eps_decay_factor = eps_decay_factor
@@ -306,10 +270,15 @@ class QLearning:
         self.learning_rate = lr
         self.step_size = step_size
 
-        if q_table is None:
+        self.starts = np.where(self.grid == CELL.START)
+        self.starts = list(zip(self.starts[0], self.starts[1]))
+        self.goal = np.where(self.grid == CELL.TARGET)
+        self.goal = (self.goal[0][0], self.goal[1][0])
+
+        if not load_q_table:
             self.q_table = np.zeros((self.game.grid.shape[0], self.game.grid.shape[1], 25, 9), dtype=float)
         else: 
-            self.q_table = q_table
+            self.load_q_table_from_text(q_table_file_name)
 
         # set a entries in q table to zero for target states
         #target_pos = np.where(self.game.grid == CELL.TARGET)
@@ -325,7 +294,7 @@ class QLearning:
         Implementation of the Q-Learning algorithm to play the path finding game on a definied map
         """
 
-        for episode in range(1, self.n_episodes + 1):
+        for episode in tqdm(range(self.n_episodes)):
 
             episode_reward, _ = self.run_episode(training=True)
             self.rewards_per_episode.append(episode_reward)
@@ -333,9 +302,6 @@ class QLearning:
             if (episode%self.step_size == 0):
                 #reduce eps for randomization
                 self.eps = max(self.min_eps, self.eps*self.eps_decay_factor)
-
-            if (episode%10 == 0):
-                print(f"Episode {episode}: Reward : {episode_reward}")
 
 
     def run_episode(self, training = False):
@@ -355,16 +321,14 @@ class QLearning:
             list of the visited positions in the episode
         """
         episode_reward = 0
-        positions = [self.game.agent]
+        current_pos, current_velocity = self.find_start_position()
 
-        while not self.game.is_game_finished():
+        while current_pos!=self.goal:
 
-            current_pos = self.game.agent
-            current_velocity = self.game.velocity
             velocity_index = self.velocities.index(list(current_velocity))
 
             if np.random.uniform(0,1) < self.eps:
-                action_index = random.randint(0,8)
+                action_index = random.randint(0,len(self.actions)-1)
             else:
                 action_index = np.nanargmax(self.q_table[current_pos[0], current_pos[1], velocity_index, :])
 
@@ -403,6 +367,20 @@ class QLearning:
 
         return episode_reward, positions
     
+    def find_start_position(self):
+        """
+        Find a random start position on a start cell.
+
+        Returns
+        -------
+        tuple(tuple(int, int), list[int, int])
+            The start position and current velocity
+        """
+
+        start_pos = np.where(self.grid == CELL.START)
+        r_idx = np.random.randint(len(start_pos[0]))
+        return ((start_pos[0][r_idx], start_pos[1][r_idx]), [0,0])  
+    
 
     def store_qtable(self, file_name = None):
         """
@@ -432,7 +410,6 @@ class QLearning:
         reshaped_qtable = loaded_qtable.reshape(self.q_table.shape[0], self.q_table.shape[1], self.q_table.shape[2], self.q_table.shape[3])
 
         self.q_table = reshaped_qtable
-
 
 
 if __name__ == "__main__":
