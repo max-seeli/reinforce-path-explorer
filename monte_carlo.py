@@ -81,9 +81,8 @@ class MonteCarlo:
 
     @staticmethod
     def get_valid_actions(state):
-        valid_actions = []
-        
         if state not in MonteCarlo.actions_memoization:
+            valid_actions = []
             for action, step in MonteCarlo.actions.items():
                 combined = (state[2] + step[0], state[3] + step[1])
                 if np.all(np.abs(combined) <= MonteCarlo.max_velocity) and np.any(combined):
