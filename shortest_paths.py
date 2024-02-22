@@ -53,10 +53,8 @@ class ShortestPaths:
 
             self.calc_shortest_paths()
 
-        json_string = json.dumps(self.results)
-
         with open(self.json_file, "w") as outfile:
-            outfile.write(json_string)
+            json.dump(self.results, outfile, indent=4)
 
     def calc_shortest_paths(self):
         """
@@ -64,8 +62,10 @@ class ShortestPaths:
         """
         G = self.build_graph()
 
+        map_name = self.map_file.split("/")[-1]
+
         results = dict(
-            file=self.map_file,
+            file="maps/" + map_name,
             optimal_path_lengths=[],
             start_positions=[],
             shortest_paths=[],
@@ -86,9 +86,7 @@ class ShortestPaths:
                 [(G.nodes[i]["x_coord"], G.nodes[i]["y_coord"]) for i in path]
             )
 
-        map_name = self.map_file.split("/")[-1][:-4]
-
-        self.results[map_name] = results
+        self.results[map_name[:-4]] = results
 
     def build_graph(self):
         """
