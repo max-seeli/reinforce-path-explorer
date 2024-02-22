@@ -44,8 +44,6 @@ class ShortestPaths:
         ----------
         map_files : list(str)
             list of map files
-        json_file : str
-            file in which to store the results
         """
 
         for map_file in map_files:
