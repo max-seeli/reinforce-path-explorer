@@ -2,6 +2,7 @@ import numpy as np
 from tqdm import tqdm
 from collections import defaultdict
 import warnings
+import time
 
 from cell import CELL
 
@@ -116,7 +117,7 @@ class MonteCarlo:
            'no_change': (0, 0)}
     max_velocity = 2
     
-    def __init__(self, grid, gamma=0.9, num_episodes=10000, train_epsilon=0.9, test_epsilon=0.05, policy_filename=None, load_policy=False, random_state=2024):
+    def __init__(self, grid, gamma=0.9, num_episodes=10000, train_epsilon=0.9, test_epsilon=0.05, policy_filename=None, load_policy=False, checkpoint=None, random_state=2024):
         """
         Initializes an instance of the MonteCarlo Reinforcement Learning agent.
 
@@ -136,6 +137,8 @@ class MonteCarlo:
             The filename to save or load the learned policy. If specified, the policy will be saved to or loaded from this file. Defaults to None.
         load_policy : bool
             Whether to load a pre-trained policy from the specified policy file. If True, the agent will attempt to load the policy from the file specified by `policy_filename`. Defaults to False.
+        checkpoint : int
+            The number of episodes after which the policy should be saved. Defaults to None.
         random_state: int
             Determines random number generation for train/test-epsilon.
         """
@@ -166,6 +169,8 @@ class MonteCarlo:
             self.is_trained = True
             self.policy.set_trained()
 
+        self.checkpoint = checkpoint
+
     @staticmethod
     def get_valid_actions(state):
         """
@@ -189,7 +194,7 @@ class MonteCarlo:
             MonteCarlo.valid_actions_memoization[state] = valid_actions
         return MonteCarlo.valid_actions_memoization[state]
     
-    def generate_episode(self, start=None):
+    def generate_episode(self, start=None, max_steps=None):
         """
         Runs an episode of the game. Episode ends with reaching the target cell and gets resetted to a new 
         random start if we reach an invalid state.
@@ -202,7 +207,7 @@ class MonteCarlo:
 
         episode = []
         state = start + (0, 0) if start else self.gen_random_start() + (0, 0)
-        while state[:2] != self.goal:
+        while state[:2] != self.goal and (max_steps is None or len(episode) < max_steps):
             action = self.policy[state]
             next_state = self.step(state, action)
 
@@ -302,13 +307,20 @@ class MonteCarlo:
     def monte_carlo_control(self):
         """
         Runs the monte carlo method based on first pass visit.
+
+        Returns
+        -------
+        list
+            Time for each episode.
         """
 
         if self.is_trained:
             warnings.warn("The agent is already trained.")
             return
         
-        for _ in tqdm(range(self.num_episodes)):
+        times = []
+        for e in tqdm(range(self.num_episodes)):
+            start = time.time()
             episode = self.generate_episode()
             G = 0
             for t in range(len(episode) - 1, -1, -1):
@@ -321,7 +333,12 @@ class MonteCarlo:
                     # Update policy with the action that has the highest value and is legal
                     self.policy[state] = max(MonteCarlo.get_valid_actions(state), key=lambda a: self.Q[state][a])
 
+            times.append(time.time() - start)
+            if self.checkpoint and e % self.checkpoint == 0:
+                checkpoint_filename = f"{self.policy_filename[:-11]}_{e}.policy.txt"
+                self.policy.save(checkpoint_filename)
         self.is_trained = True
         self.policy.set_trained()
         if self.policy_filename:
             self.policy.save(self.policy_filename)
+        return times
