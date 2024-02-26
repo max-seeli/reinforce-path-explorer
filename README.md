@@ -17,3 +17,8 @@ We first train the agent by letting it play the game 10000 times. We use a high 
 Start 1 | Start 2
 --- | ---
 ![Start 1](img/example_path1.png) | ![Start 2](img/example_path2.png)
+
+
+For the tested maps, the learned policy converges after the set limit of 10000 episodes and finds the (almost) shortest path to the goal. The learned policy is also robust to different starting positions.
+
+![Learning curves](img/effectiveness.png)
